@@ -1,65 +1,69 @@
 import streamlit as st
-import warnings
-from Modules.connect_to_sql import MySqlConnection
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime
+import plotly.graph_objects as go
 
-warnings.simplefilter(action='ignore', category=FutureWarning)
+# Load your data
+data = pd.read_csv("df_balance.csv", parse_dates=["Date"])
 
-# Title and Description
-st.title("Clothing Price Forecast Tool")
-st.write("Adjust parameters to dynamically forecast clothing prices based on business metrics.")
+# Filter for forecasted months (based on current date)
+current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+forecast_data = data[data['Date'] >= current_date]
 
-x = st.text_input("Enter the number of days to forecast:", "365")
-st.write("You entered: ", x)
+# User inputs with direct input for figures
+st.markdown("<h1 style='font-size: 40px;'>European Monthly Storage Forecast</h1>", unsafe_allow_html=True)
 
-# static definition
-conversion_GWh2McM = 0.09999
-split_country_list = ['Belgium','Germany','France','Hungary','Italy','Luxembourg','Poland','Portugal','United Kingdom','Netherlands']
+selected_columns = st.multiselect(
+    "Select variables to adjust:",
+    ['EU27+UK', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG']
+)
 
+adjustment_values = {}
+for col in selected_columns:
+    adjustment_values[col] = st.number_input(f"Adjust {col} by (%)", min_value=-100, max_value=100, value=0)
 
-def get_GMC_factors():
-    # initiate sql connection
-    sql_params = {
-        "server_name": "ekofisk",
-        "database_name": "GasMarketsCubeRelease",
-        "table_name": "PipelineStringDump",
-        "schema_name": "dbo",
-    }
-    cn = MySqlConnection(sql_params["server_name"], sql_params["database_name"])
-    query_GMC = '''
-    SELECT [Country]
-      ,[Year]
-      ,[Demand Sector Category]
-      ,[Demand (Bcm)]
-    FROM [GasMarketsCube].[dbo].[tblDemandConsumption]
-    '''
-    df_GMC_demand = cn.sql_to_df(query_GMC)
-    df_GMC_demand.loc[df_GMC_demand['Demand Sector Category'] == 'Fuel gas', 'Demand Sector Category'] = 'Fuel Gas'
-    df1 = df_GMC_demand.groupby(['Country', 'Year', 'Demand Sector Category'], as_index=False)['Demand (Bcm)'].sum()
-    df2 = df_GMC_demand.groupby(['Country', 'Year'], as_index=False)['Demand (Bcm)'].sum()
-    df_sector_share = df1.merge(df2, how='inner', on=['Country', 'Year'])
-    df_sector_share['share'] = df_sector_share['Demand (Bcm)_x'] / df_sector_share['Demand (Bcm)_y']
+# If Demand is selected, allow month selection
+if 'Demand' in selected_columns:
+    month_range = pd.date_range(start=forecast_data['Date'].min(), end=forecast_data['Date'].max(), freq='MS')
+    selected_months = st.multiselect("Select months to adjust Demand (default is all)", month_range, default=month_range)
 
-    df3 = df_GMC_demand[~df_GMC_demand['Demand Sector Category'].isin(['Power'])].groupby(
-        ['Country', 'Year', 'Demand Sector Category'], as_index=False)['Demand (Bcm)'].sum()
-    df4 = df3.groupby(['Country', 'Year'], as_index=False)['Demand (Bcm)'].sum()
-    df_sector_share_exclude_power = df3.merge(df4, how='inner', on=['Country', 'Year'])
-    df_sector_share_exclude_power['share'] = df_sector_share_exclude_power['Demand (Bcm)_x'] / \
-                                             df_sector_share_exclude_power['Demand (Bcm)_y']
+# Apply adjustments only to forecasted months
+adjusted_data = forecast_data.copy()
+for col, percent in adjustment_values.items():
+    if col == 'Demand' and selected_months:
+        adjusted_data.loc[adjusted_data['Date'].isin(selected_months), col] = adjusted_data.loc[adjusted_data['Date'].isin(selected_months), col] * (1 + percent / 100)
+    else:
+        adjusted_data[col] = adjusted_data[col] * (1 + percent / 100)
 
-    # share of "Others" in ST Dim
-    df5 = df_GMC_demand[
-        df_GMC_demand['Demand Sector Category'].isin(['Transportation', 'Losses', 'Fuel Gas', 'Others'])].groupby(
-        ['Country', 'Year'], as_index=False)['Demand (Bcm)'].sum()
-    df_sector_share_others = df5.merge(df2, how='inner', on=['Country', 'Year'])
-    df_sector_share_others['share'] = df_sector_share_others['Demand (Bcm)_x'] / df_sector_share_others[
-        'Demand (Bcm)_y']
-    df_sector_share_others['share'] = 1 - df_sector_share_others['share'].copy()
+# Recalculate Net_injection_normal
+adjusted_data['Net_injection_changes'] = (
+    (adjusted_data['EU27+UK'] + adjusted_data['Algeria'] + adjusted_data['Azerbaijan'] +
+     adjusted_data['Libya'] + adjusted_data['Russia'] + adjusted_data['Turkey'] +
+     adjusted_data['NOR Pipe'] + adjusted_data['LNG'] - adjusted_data['Demand']) - adjusted_data['Net_injection_normal']
+)
+adjusted_data['Net_injection_final'] = adjusted_data['Net_injection_normal'] + adjusted_data['Net_injection_changes']
 
-    # Use the annual GMC power data to apply efficiency calculation
-    df_GMC_power = df_GMC_demand[df_GMC_demand['Demand Sector Category'] == 'Power'].sort_values(by=['Country', 'Year'])
+# Refresh the storage forecast
+first_index = adjusted_data['Storage_FC_normal'].first_valid_index()
+adjusted_data.loc[first_index+1:, 'Storage_FC_normal'] = adjusted_data.loc[first_index+1:, 'Net_injection_final']
+adjusted_data.loc[first_index:, 'Storage_FC_normal'] = adjusted_data.loc[first_index:, 'Storage_FC_normal'].cumsum()
 
-    return df_GMC_power,df_sector_share_exclude_power,df_sector_share,df_sector_share_others
+df_merge = pd.concat([adjusted_data, data.loc[data['Date'] < current_date]], axis=0).sort_values(by='Date')
 
-df_GMC_power, df_sector_share_exclude_power, df_sector_share, df_sector_share_others = get_GMC_factors()
+# Plotting charts
+fig = go.Figure()
 
-st.title(df_sector_share_others['Country'].unique())
+# Plot Storage vs Forecasted Storage
+fig.add_trace(go.Scatter(x=df_merge['Date'], y=df_merge['Storage'], mode='lines', name='Storage', line=dict(color='blue', shape='spline')))
+fig.add_trace(go.Scatter(x=df_merge['Date'], y=df_merge['Storage_FC_normal'], mode='lines', name='Storage Forecast', line=dict(color='orange', dash='dash', shape='spline')))
+
+fig.update_layout(
+    title="European Storage Forecast Over Time",
+    yaxis_title="TWh",
+    legend_title="Legend",
+    hovermode="x unified"
+)
+
+st.plotly_chart(fig)
