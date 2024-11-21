@@ -13,27 +13,42 @@ if 'saved_charts' not in st.session_state:
 @st.cache_data
 def load_data():
     data = pd.read_csv("df_balance.csv", parse_dates=["Date"])
+    data.columns =['Date', 'Storage', 'Storage_FC_normal', 'Net_injection_normal',
+       'EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)',
+       'Russia (TurkStream)', 'Norway', 'LNG', 'Balance']
     return data
 
 
 # Main app function
 def main():
-    st.markdown("<h1 style='font-size: 40px;'>European Monthly Storage Forecast</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='font-size: 40px;'>European Monthly Storage Scenarios</h1>", unsafe_allow_html=True)
 
     # Load data
     data = load_data()
+    data = data.round(2)
+    data['Storage_FC_normal'] = data['Storage_FC_normal'].round(2)
+    data['Storage'] = data['Storage'].round(2)
+    data['Net_injection_normal'] = data['Net_injection_normal'].round(2)
+    # make all the numeric numbers to be rounded to 2 decimal places
+
+    # Display the data groupby year and give title
+    st.markdown("## Current base case by year", unsafe_allow_html=True)
+    st.write(data.groupby(data['Date'].dt.year)['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG'].sum())
+
+    # Use the data from 'EU27+UK', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG' to make a supply pie chart
+    st.markdown("## Supply by gas source", unsafe_allow_html=True)
+    supply_data = data[['EU27+UK Production', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']].sum()
+    fig = go.Figure(data=[go.Pie(labels=supply_data.index, values=supply_data.values)])
+    st.plotly_chart(fig)
 
     # Filter for forecasted months
     current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     forecast_data = data[data['Date'] >= current_date]
 
-    # Sidebar for chart management
-    st.sidebar.header("Chart Management")
-
     # User inputs for adjustments
     selected_columns = st.multiselect(
         "Select variables to adjust:",
-        ['EU27+UK', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG']
+        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
     )
 
     # Adjustment inputs
@@ -62,9 +77,9 @@ def main():
         # Recalculate Net_injection and Storage
         first_index = adjusted_data['Storage_FC_normal'].first_valid_index()
         adjusted_data['Net_injection_changes'] = (
-                (adjusted_data['EU27+UK'] + adjusted_data['Algeria'] + adjusted_data['Azerbaijan'] +
-                 adjusted_data['Libya'] + adjusted_data['Russia'] + adjusted_data['Turkey'] +
-                 adjusted_data['NOR Pipe'] + adjusted_data['LNG'] - adjusted_data['Demand']) -
+                (adjusted_data['EU27+UK Production'] + adjusted_data['Algeria'] + adjusted_data['Azerbaijan'] +
+                 adjusted_data['Libya'] + adjusted_data['Russia (UA transit)'] + adjusted_data['Russia (TurkStream)'] +
+                 adjusted_data['Norway'] + adjusted_data['LNG'] - adjusted_data['Demand']) -
                 adjusted_data['Net_injection_normal']
         )
         adjusted_data['Net_injection_final'] = adjusted_data['Net_injection_normal'] + adjusted_data[
@@ -80,6 +95,10 @@ def main():
 
     # Apply adjustments
     adjusted_data = apply_adjustments(forecast_data, adjustment_values, selected_months)
+
+    # Display the adjusted data by year
+    st.markdown("## ")
+    st.write(adjusted_data.groupby(adjusted_data['Date'].dt.year)['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG'].sum())
 
     # Merge with historical data
     df_merge = pd.concat([adjusted_data, data.loc[data['Date'] < current_date]], axis=0).sort_values(by='Date')
@@ -157,7 +176,6 @@ def main():
             st.write(saved_data['adjustments'])
             if 'selected_months' in saved_data and saved_data['selected_months']:
                 st.write("Adjusted Months:", saved_data['selected_months'])
-
 
 # Run the app
 if __name__ == "__main__":

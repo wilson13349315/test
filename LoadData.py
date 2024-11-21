@@ -91,3 +91,5 @@ def get_European_demand_by_sector():
 df_balance = get_European_balance()
 df_balance = df_balance.drop(['Timestamp'], axis=1)
 df_balance.to_csv('df_balance.csv', index=False)
+
+
