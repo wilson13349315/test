@@ -41,7 +41,14 @@ def main():
     st.write(data_grouped)
     # Use the data from 'EU27+UK', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG' to make a supply pie chart
     st.markdown("## Supply by gas source", unsafe_allow_html=True)
-    supply_data = data[['EU27+UK Production', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']].sum()
+
+    # Calculate the supply data and sort it by values in descending order
+    supply_data = data[
+        ['EU27+UK Production', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway',
+         'LNG']].sum()
+    supply_data = supply_data.sort_values(ascending=False)
+
+    # Create the pie chart with sorted data
     fig = go.Figure(data=[go.Pie(labels=supply_data.index, values=supply_data.values)])
     st.plotly_chart(fig)
 
