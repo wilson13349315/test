@@ -33,8 +33,12 @@ def main():
 
     # Display the data groupby year and give title
     st.markdown("## Current base case by year", unsafe_allow_html=True)
-    st.write(data.groupby(data['Date'].dt.year)['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG'].sum())
+    data_grouped = data.groupby(data['Date'].dt.year)[
+        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya',
+         'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
+    ].sum()
 
+    st.write(data_grouped)
     # Use the data from 'EU27+UK', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG' to make a supply pie chart
     st.markdown("## Supply by gas source", unsafe_allow_html=True)
     supply_data = data[['EU27+UK Production', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']].sum()
