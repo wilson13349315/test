@@ -102,7 +102,12 @@ def main():
 
     # Display the adjusted data by year
     st.markdown("## ")
-    st.write(adjusted_data.groupby(adjusted_data['Date'].dt.year)['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG'].sum())
+
+    adjusted_data_grouped = adjusted_data.groupby(adjusted_data['Date'].dt.year)[
+        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya',
+         'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
+    ].sum()
+    st.write(adjusted_data_grouped)
 
     # Merge with historical data
     df_merge = pd.concat([adjusted_data, data.loc[data['Date'] < current_date]], axis=0).sort_values(by='Date')
