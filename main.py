@@ -160,9 +160,7 @@ elif menu == "Check Overdue":
     if overdue_list:
         for record in overdue_list:
             st.write(f"Borrower: {record[1]}, Due: {record[2]}, Email: {record[3]}")
-            if st.button(f"Send Reminder to {record[1]}", key=record[0]):
-                send_email(record[3], record[1], record[2])
-                st.success("Reminder Sent!")
+
     else:
         st.write("No overdue records.")
 
