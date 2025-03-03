@@ -6,9 +6,6 @@ import pandas as pd
 from email.mime.text import MIMEText
 
 
-# Total number of cards (can be updated as needed)
-TOTAL_CARDS = 10  # Update this value based on the available number of cards
-
 def init_db():
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
@@ -80,26 +77,29 @@ def get_borrowing_history(card_code):
     return history
 
 
-def get_available_cards():
-    # Total number of cards as a variable
-    total_cards = {f"Card-{i + 1}" for i in range(TOTAL_CARDS)}  # Dynamically adjust total cards count
+def get_available_cards(total_cards):
+    # Dynamically adjust total cards count from input
+    total_cards_set = {f"Card-{i + 1}" for i in range(total_cards)}
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
     c.execute("SELECT card_code FROM records WHERE returned = 0")
     borrowed_cards = {row[0] for row in c.fetchall()}
     conn.close()
-    available_cards = sorted(list(total_cards - borrowed_cards))
+    available_cards = sorted(list(total_cards_set - borrowed_cards))
     return available_cards
 
 
 st.title("Company Swimming Card Tracker")
 init_db()
 
+# Input box for total number of cards (can be updated by user)
+TOTAL_CARDS = st.number_input("Total Number of Cards Available:", min_value=1, value=10)
+
 menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue", "View Card History",
                                      "Available Cards"])
 
 if menu == "Borrow Card":
-    available_cards = get_available_cards()
+    available_cards = get_available_cards(TOTAL_CARDS)
 
     if available_cards:
         card_code = st.selectbox("Select Available Card to Borrow:", available_cards)
@@ -175,7 +175,7 @@ elif menu == "View Card History":
         st.write("Please enter a valid card code.")
 
 elif menu == "Available Cards":
-    available_cards = get_available_cards()
+    available_cards = get_available_cards(TOTAL_CARDS)
     st.write("### Available Cards")
     for card in available_cards:
         st.write(card)
