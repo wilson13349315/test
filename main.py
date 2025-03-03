@@ -98,7 +98,6 @@ menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records
                                      "Available Cards"])
 
 if menu == "Borrow Card":
-
     # Authorization check for updating the total cards number
     auth_name = st.text_input("Enter your Authorization Name:")
 
@@ -110,6 +109,7 @@ if menu == "Borrow Card":
         TOTAL_CARDS = 10  # Default value when user is not authorized
 
     available_cards = get_available_cards(TOTAL_CARDS)
+
 
     if available_cards:
         card_code = st.selectbox("Select Available Card to Borrow:", available_cards)
@@ -183,9 +183,3 @@ elif menu == "View Card History":
                 st.write("No history found.")
     else:
         st.write("Please enter a valid card code.")
-
-elif menu == "Available Cards":
-    available_cards = get_available_cards(TOTAL_CARDS)
-    st.write("### Available Cards")
-    for card in available_cards:
-        st.write(card)
