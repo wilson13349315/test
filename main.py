@@ -59,7 +59,7 @@ def send_email(to_email, borrower, due_date):
     msg = MIMEText(
         f"Dear {borrower},\n\nYour borrowed swimming card is overdue since {due_date}. Please return it as soon as possible.")
     msg["Subject"] = "Swimming Card Overdue Reminder"
-    msg["From"] = "your_email@example.com"
+    msg["From"] = "your_email@example.com" # Update sender email
     msg["To"] = to_email
 
     with smtplib.SMTP("smtp.example.com", 587) as server:  # Change SMTP settings
