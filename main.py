@@ -21,7 +21,7 @@ def init_db():
     conn.close()
 
 
-def borrow_card(card_code, borrower, email, duration=14):
+def borrow_card(card_code, borrower, email, duration=7):
     borrow_date = datetime.date.today()
     due_date = borrow_date + datetime.timedelta(days=duration)
     conn = sqlite3.connect("swim_cards.db")
@@ -92,10 +92,9 @@ def get_available_cards(total_cards):
 st.title("Company Swimming Card Tracker")
 init_db()
 
+menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue", "View Card History"])
 
-
-menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue", "View Card History",
-                                     "Available Cards"])
+global TOTAL_CARDS
 
 if menu == "Borrow Card":
     # Authorization check for updating the total cards number
@@ -103,6 +102,7 @@ if menu == "Borrow Card":
 
     # Only show the total cards input if the user enters "REOslo"
     if auth_name == "REOslo":
+
         TOTAL_CARDS = st.number_input("Total Number of Cards Available:", min_value=1, value=10)
     else:
         st.write("You are not authorized to update the total number of cards.")
