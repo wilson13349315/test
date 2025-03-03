@@ -58,7 +58,7 @@ def send_email(to_email, borrower, due_date):
     msg = MIMEText(
         f"Dear {borrower},\n\nYour borrowed swimming card is overdue since {due_date}. Please return it as soon as possible.")
     msg["Subject"] = "Swimming Card Overdue Reminder"
-    msg["From"] = "your_email@example.com"  # Change this to your email
+    msg["From"] = "your_email@example.com"
     msg["To"] = to_email
 
     with smtplib.SMTP("smtp.example.com", 587) as server:  # Change SMTP settings
@@ -77,13 +77,14 @@ def get_borrowing_history(card_code):
 
 
 def get_available_cards():
+    total_cards = {f"Card-{i + 1}" for i in range(10)}  # Assuming 10 cards in total
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
-    c.execute(
-        "SELECT DISTINCT card_code FROM records WHERE returned = 1 OR card_code NOT IN (SELECT card_code FROM records WHERE returned = 0)")
-    available_cards = [row[0] for row in c.fetchall()]
+    c.execute("SELECT card_code FROM records WHERE returned = 0")
+    borrowed_cards = {row[0] for row in c.fetchall()}
     conn.close()
-    return available_cards
+    available_cards = total_cards - borrowed_cards
+    return sorted(available_cards)
 
 
 st.title("Company Swimming Card Tracker")
@@ -96,7 +97,7 @@ if menu == "Borrow Card":
     card_code = st.text_input("Card Code:")
     borrower = st.text_input("Borrower's Name:")
     email = st.text_input("Borrower's Email:")
-    duration = st.number_input("Borrow Duration (days):", min_value=1, value=14)
+    duration = st.number_input("Borrow Duration (days):", min_value=1, max_value=14, value=14)
     if st.button("Confirm Borrowing"):
         borrow_card(card_code, borrower, email, duration)
         st.success("Borrowing Recorded!")
