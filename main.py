@@ -81,11 +81,11 @@ def get_available_cards():
     total_cards = {f"Card-{i + 1}" for i in range(10)}  # Assuming 10 cards in total
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
-    c.execute("SELECT DISTINCT card_code FROM records WHERE returned = 0")
+    c.execute("SELECT card_code FROM records WHERE returned = 0")
     borrowed_cards = {row[0] for row in c.fetchall()}
     conn.close()
-    available_cards = total_cards - borrowed_cards
-    return sorted(available_cards)
+    available_cards = sorted(list(total_cards - borrowed_cards))
+    return available_cards
 
 
 st.title("Company Swimming Card Tracker")
@@ -95,7 +95,7 @@ menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records
                                      "Available Cards"])
 
 if menu == "Borrow Card":
-    card_code = st.text_input("Card Code:")
+    card_code = st.selectbox("Card Code:", [f"Card-{i + 1}" for i in range(10)])
     borrower = st.text_input("Borrower's Name:")
     email = st.text_input("Borrower's Email:")
     duration = st.number_input("Borrow Duration (days):", min_value=1, max_value=14, value=14)
@@ -149,7 +149,7 @@ elif menu == "Check Overdue":
         st.write("No overdue records.")
 
 elif menu == "View Card History":
-    card_code = st.text_input("Enter Card Code:")
+    card_code = st.selectbox("Select Card Code:", [f"Card-{i + 1}" for i in range(10)])
     if st.button("View History"):
         history = get_borrowing_history(card_code)
         if history:
