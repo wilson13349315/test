@@ -1,198 +1,115 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime
-
-# Initialize session state for storing charts
-if 'saved_charts' not in st.session_state:
-    st.session_state.saved_charts = {}
+import sqlite3
+import datetime
+import smtplib
+from email.mime.text import MIMEText
 
 
-# Load your data
-@st.cache_data
-def load_data():
-    data = pd.read_csv("df_balance.csv", parse_dates=["Date"])
-    data.columns =['Date', 'Storage', 'Storage_FC_normal', 'Net_injection_normal',
-       'EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)',
-       'Russia (TurkStream)', 'Norway', 'LNG', 'Balance']
-    return data
+def init_db():
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    card_code TEXT,
+                    borrower TEXT,
+                    borrow_date TEXT,
+                    due_date TEXT,
+                    returned INTEGER DEFAULT 0,
+                    email TEXT)''')
+    conn.commit()
+    conn.close()
 
 
-# Main app function
-def main():
-    st.markdown("<h1 style='font-size: 40px;'>European Monthly Storage Scenarios</h1>", unsafe_allow_html=True)
+def borrow_card(card_code, borrower, email):
+    borrow_date = datetime.date.today()
+    due_date = borrow_date + datetime.timedelta(weeks=2)
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO records (card_code, borrower, borrow_date, due_date, email) VALUES (?, ?, ?, ?, ?)",
+              (card_code, borrower, borrow_date, due_date, email))
+    conn.commit()
+    conn.close()
 
-    # Load data
-    data = load_data()
-    data = data.round(2)
-    data['Storage_FC_normal'] = data['Storage_FC_normal'].round(2)
-    data['Storage'] = data['Storage'].round(2)
-    data['Net_injection_normal'] = data['Net_injection_normal'].round(2)
-    # make all the numeric numbers to be rounded to 2 decimal places
 
-    # Display the data groupby year and give title
-    st.markdown("## Current base case by year", unsafe_allow_html=True)
-    data_grouped = data.groupby(data['Date'].dt.year)[
-        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya',
-         'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
-    ].sum()
+def return_card(record_id):
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("UPDATE records SET returned = 1 WHERE id = ?", (record_id,))
+    conn.commit()
+    conn.close()
 
-    st.write(data_grouped)
-    # Use the data from 'EU27+UK', 'Algeria', 'Azerbaijan', 'Libya', 'Russia', 'Turkey', 'NOR Pipe', 'LNG' to make a supply pie chart
-    st.markdown("## Supply by gas source", unsafe_allow_html=True)
 
-    # Calculate the supply data and sort it by values in descending order
-    supply_data = data[
-        ['EU27+UK Production', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway',
-         'LNG']].sum()
-    supply_data = supply_data.sort_values(ascending=False)
+def check_overdue():
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT id, borrower, due_date, email FROM records WHERE returned = 0")
+    overdue_list = []
+    today = datetime.date.today()
+    for row in c.fetchall():
+        due_date = datetime.datetime.strptime(row[2], "%Y-%m-%d").date()
+        if due_date < today:
+            overdue_list.append(row)
+    conn.close()
+    return overdue_list
 
-    # Create the pie chart with sorted data
-    fig = go.Figure(data=[go.Pie(labels=supply_data.index, values=supply_data.values)])
-    st.plotly_chart(fig)
 
-    # Filter for forecasted months
-    current_date = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    forecast_data = data[data['Date'] >= current_date]
+def send_email(to_email, borrower, due_date):
+    msg = MIMEText(
+        f"Dear {borrower},\n\nYour borrowed swimming card is overdue since {due_date}. Please return it as soon as possible.")
+    msg["Subject"] = "Swimming Card Overdue Reminder"
+    msg["From"] = "your_email@example.com"  # Change this to your email
+    msg["To"] = to_email
 
-    # User inputs for adjustments
-    selected_columns = st.multiselect(
-        "Select variables to adjust:",
-        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya', 'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
-    )
+    with smtplib.SMTP("smtp.example.com", 587) as server:  # Change SMTP settings
+        server.starttls()
+        server.login("your_email@example.com", "your_password")  # Update credentials
+        server.sendmail("your_email@example.com", to_email, msg.as_string())
 
-    # Adjustment inputs
-    adjustment_values = {}
-    for col in selected_columns:
-        adjustment_values[col] = st.number_input(f"Adjust {col} by (%)", min_value=-100, max_value=100, value=0)
 
-    # Month selection for Demand adjustment
-    if 'Demand' in selected_columns:
-        month_range = pd.date_range(start=forecast_data['Date'].min(), end=forecast_data['Date'].max(), freq='MS')
-        selected_months = st.multiselect("Select months to adjust Demand (default is all)", month_range,
-                                         default=month_range)
+st.title("Company Swimming Card Tracker")
+init_db()
+
+menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue"])
+
+if menu == "Borrow Card":
+    card_code = st.text_input("Card Code:")
+    borrower = st.text_input("Borrower's Name:")
+    email = st.text_input("Borrower's Email:")
+    if st.button("Confirm Borrowing"):
+        borrow_card(card_code, borrower, email)
+        st.success("Borrowing Recorded!")
+
+elif menu == "Return Card":
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT id, card_code, borrower FROM records WHERE returned = 0")
+    records = c.fetchall()
+    conn.close()
+    if records:
+        record_id = st.selectbox("Select Borrowing Record to Return:", [f"{r[0]} - {r[1]} ({r[2]})" for r in records])
+        if st.button("Return Card"):
+            return_card(int(record_id.split()[0]))
+            st.success("Card Returned!")
     else:
-        selected_months = []
+        st.write("No active borrowings.")
 
-    # Apply adjustments
-    def apply_adjustments(data, adjustment_values, selected_months):
-        adjusted_data = data.copy()
-        for col, percent in adjustment_values.items():
-            if col == 'Demand' and selected_months:
-                adjusted_data.loc[adjusted_data['Date'].isin(selected_months), col] = \
-                    adjusted_data.loc[adjusted_data['Date'].isin(selected_months), col] * (1 + percent / 100)
-            else:
-                adjusted_data[col] = adjusted_data[col] * (1 + percent / 100)
+elif menu == "View Records":
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT card_code, borrower, borrow_date, due_date, returned FROM records")
+    records = c.fetchall()
+    conn.close()
+    st.write("### Borrowing Records")
+    for r in records:
+        st.write(f"Card: {r[0]}, Borrower: {r[1]}, Borrowed: {r[2]}, Due: {r[3]}, Returned: {'Yes' if r[4] else 'No'}")
 
-        # Recalculate Net_injection and Storage
-        first_index = adjusted_data['Storage_FC_normal'].first_valid_index()
-        adjusted_data['Net_injection_changes'] = (
-                (adjusted_data['EU27+UK Production'] + adjusted_data['Algeria'] + adjusted_data['Azerbaijan'] +
-                 adjusted_data['Libya'] + adjusted_data['Russia (UA transit)'] + adjusted_data['Russia (TurkStream)'] +
-                 adjusted_data['Norway'] + adjusted_data['LNG'] - adjusted_data['Demand']) -
-                adjusted_data['Net_injection_normal']
-        )
-        adjusted_data['Net_injection_final'] = adjusted_data['Net_injection_normal'] + adjusted_data[
-            'Net_injection_changes']
-
-        # Update storage forecast
-        adjusted_data.loc[first_index + 1:, 'Storage_FC_normal'] = adjusted_data.loc[first_index + 1:,
-                                                                   'Net_injection_final']
-        adjusted_data.loc[first_index:, 'Storage_FC_normal'] = adjusted_data.loc[first_index:,
-                                                               'Storage_FC_normal'].cumsum()
-
-        return adjusted_data
-
-    # Apply adjustments
-    adjusted_data = apply_adjustments(forecast_data, adjustment_values, selected_months)
-
-    # Display the adjusted data by year
-    st.markdown("## ")
-
-    adjusted_data_grouped = adjusted_data.groupby(adjusted_data['Date'].dt.year)[
-        ['EU27+UK Production', 'Demand', 'Algeria', 'Azerbaijan', 'Libya',
-         'Russia (UA transit)', 'Russia (TurkStream)', 'Norway', 'LNG']
-    ].sum()
-    st.write(adjusted_data_grouped)
-
-    # Merge with historical data
-    df_merge = pd.concat([adjusted_data, data.loc[data['Date'] < current_date]], axis=0).sort_values(by='Date')
-
-    # Create Plotly figure
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_merge['Date'], y=df_merge['Storage'], mode='lines', name='Storage',
-                             line=dict(color='blue', shape='spline')))
-    fig.add_trace(go.Scatter(x=df_merge['Date'], y=df_merge['Storage_FC_normal'], mode='lines', name='Storage Forecast',
-                             line=dict(color='orange', dash='dash', shape='spline')))
-
-    fig.update_layout(
-        title="European Storage Forecast Over Time",
-        yaxis_title="TWh",
-        legend_title="Legend",
-        hovermode="x unified"
-    )
-
-    # Display the chart
-    st.plotly_chart(fig)
-
-    # Chart saving functionality
-    chart_name = st.text_input("Enter a name for this chart:")
-    if st.button("Save Current Chart") and chart_name:
-        st.session_state.saved_charts[chart_name] = {
-            'figure': fig,
-            'adjustments': adjustment_values,
-            'selected_months': selected_months
-        }
-        st.success(f"Chart '{chart_name}' saved successfully!")
-
-    # Chart comparison section
-    st.markdown("## Compare Saved Charts")
-
-    # Select charts to compare
-    comparison_charts = st.multiselect("Select charts to compare:", list(st.session_state.saved_charts.keys()))
-
-    if comparison_charts:
-        # Create a comparison figure
-        comparison_fig = go.Figure()
-
-        # Add original storage trace
-        comparison_fig.add_trace(go.Scatter(
-            x=df_merge['Date'],
-            y=df_merge['Storage'],
-            mode='lines',
-            name='Original Storage',
-            line=dict(color='blue', shape='spline')
-        ))
-
-        # Add traces for saved charts
-        colors = ['red', 'green', 'purple', 'brown']
-        for i, chart_name in enumerate(comparison_charts):
-            saved_chart = st.session_state.saved_charts[chart_name]['figure']
-            comparison_fig.add_trace(saved_chart.data[1].update(
-                name=f'{chart_name} Forecast',
-                line=dict(color=colors[i % len(colors)], dash='dash', shape='spline')
-            ))
-
-        comparison_fig.update_layout(
-            title="Comparison of Storage Forecasts",
-            yaxis_title="TWh",
-            legend_title="Legend",
-            hovermode="x unified"
-        )
-
-        # Display comparison chart
-        st.plotly_chart(comparison_fig)
-
-        # Display adjustments for comparison
-        st.markdown("### Adjustments for Compared Charts")
-        for chart_name in comparison_charts:
-            st.write(f"**{chart_name}** Adjustments:")
-            saved_data = st.session_state.saved_charts[chart_name]
-            st.write(saved_data['adjustments'])
-            if 'selected_months' in saved_data and saved_data['selected_months']:
-                st.write("Adjusted Months:", saved_data['selected_months'])
-
-# Run the app
-if __name__ == "__main__":
-    main()
+elif menu == "Check Overdue":
+    overdue_list = check_overdue()
+    if overdue_list:
+        for record in overdue_list:
+            st.write(f"Borrower: {record[1]}, Due: {record[2]}, Email: {record[3]}")
+            if st.button(f"Send Reminder to {record[1]}", key=record[0]):
+                send_email(record[3], record[1], record[2])
+                st.success("Reminder Sent!")
+    else:
+        st.write("No overdue records.")
