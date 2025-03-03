@@ -92,19 +92,72 @@ init_db()
 menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue", "View Card History",
                                      "Available Cards"])
 
-if menu == "Check Overdue":
+if menu == "Borrow Card":
+    card_code = st.text_input("Card Code:")
+    borrower = st.text_input("Borrower's Name:")
+    email = st.text_input("Borrower's Email:")
+    duration = st.number_input("Borrow Duration (days):", min_value=1, value=14)
+    if st.button("Confirm Borrowing"):
+        borrow_card(card_code, borrower, email, duration)
+        st.success("Borrowing Recorded!")
+
+elif menu == "Return Card":
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT id, card_code, borrower FROM records WHERE returned = 0")
+    records = c.fetchall()
+    conn.close()
+    if records:
+        record_id = st.selectbox("Select Borrowing Record to Return:", [f"{r[0]} - {r[1]} ({r[2]})" for r in records])
+        if st.button("Return Card"):
+            return_card(int(record_id.split()[0]))
+            st.success("Card Returned!")
+    else:
+        st.write("No active borrowings.")
+
+elif menu == "View Records":
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT card_code, borrower, borrow_date, due_date, returned FROM records")
+    records = c.fetchall()
+    conn.close()
+
+    filter_option = st.radio("Filter Records:", ["All", "Returned", "Not Returned"])
+
+    st.write("### Borrowing Records")
+    filtered_records = [r for r in records if (filter_option == "All" or (filter_option == "Returned" and r[4]) or (
+                filter_option == "Not Returned" and not r[4]))]
+    for r in filtered_records:
+        st.write(f"Card: {r[0]}, Borrower: {r[1]}, Borrowed: {r[2]}, Due: {r[3]}, Returned: {'Yes' if r[4] else 'No'}")
+
+    df = pd.DataFrame(records, columns=["Card Code", "Borrower", "Borrow Date", "Due Date", "Returned"])
+    df["Returned"] = df["Returned"].apply(lambda x: "Yes" if x else "No")
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Records", csv, "swim_card_records.csv", "text/csv")
+
+elif menu == "Check Overdue":
     overdue_list = check_overdue()
-    overdue_dict = {}
     if overdue_list:
         for record in overdue_list:
-            overdue_dict[record[0]] = st.checkbox(f"{record[1]} - Due: {record[2]}", key=record[0])
-
-        if st.button("Send Bulk Reminders"):
-            selected_ids = [record_id for record_id, selected in overdue_dict.items() if selected]
-            if selected_ids:
-                for record in overdue_list:
-                    if record[0] in selected_ids:
-                        send_email(record[3], record[1], record[2])
-                st.success("Bulk reminders sent!")
+            st.write(f"Borrower: {record[1]}, Due: {record[2]}, Email: {record[3]}")
+            if st.button(f"Send Reminder to {record[1]}", key=record[0]):
+                send_email(record[3], record[1], record[2])
+                st.success("Reminder Sent!")
     else:
         st.write("No overdue records.")
+
+elif menu == "View Card History":
+    card_code = st.text_input("Enter Card Code:")
+    if st.button("View History"):
+        history = get_borrowing_history(card_code)
+        if history:
+            for h in history:
+                st.write(f"Borrower: {h[0]}, Borrowed: {h[1]}, Due: {h[2]}, Returned: {'Yes' if h[3] else 'No'}")
+        else:
+            st.write("No history found.")
+
+elif menu == "Available Cards":
+    available_cards = get_available_cards()
+    st.write("### Available Cards")
+    for card in available_cards:
+        st.write(card)
