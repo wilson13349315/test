@@ -78,13 +78,14 @@ def get_borrowing_history(card_code):
 
 
 def get_available_cards():
-    total_cards = {f"Card-{i + 1}" for i in range(10)}  # Assuming 10 cards in total
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
-    c.execute("SELECT card_code FROM records WHERE returned = 0")
-    borrowed_cards = {row[0] for row in c.fetchall()}
+    c.execute("SELECT DISTINCT card_code FROM records")  # Get all unique card codes
+    all_cards = {row[0] for row in c.fetchall()}  # Set of all cards
+    c.execute("SELECT card_code FROM records WHERE returned = 0")  # Get borrowed cards
+    borrowed_cards = {row[0] for row in c.fetchall()}  # Set of borrowed cards
     conn.close()
-    available_cards = sorted(list(total_cards - borrowed_cards))
+    available_cards = sorted(list(all_cards - borrowed_cards))  # Available cards
     return available_cards
 
 
@@ -132,7 +133,7 @@ elif menu == "View Records":
 
     st.write("### Borrowing Records")
     filtered_records = [r for r in records if (filter_option == "All" or (filter_option == "Returned" and r[4]) or (
-                filter_option == "Not Returned" and not r[4]))]
+            filter_option == "Not Returned" and not r[4]))]
     for r in filtered_records:
         st.write(f"Card: {r[0]}, Borrower: {r[1]}, Borrowed: {r[2]}, Due: {r[3]}, Returned: {'Yes' if r[4] else 'No'}")
 
@@ -153,7 +154,13 @@ elif menu == "Check Overdue":
         st.write("No overdue records.")
 
 elif menu == "View Card History":
-    card_code = st.selectbox("Select Card Code:", [f"Card-{i + 1}" for i in range(10)])
+    conn = sqlite3.connect("swim_cards.db")
+    c = conn.cursor()
+    c.execute("SELECT DISTINCT card_code FROM records")  # Get all unique card codes
+    available_cards = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    card_code = st.selectbox("Select Card Code:", available_cards)
     if st.button("View History"):
         history = get_borrowing_history(card_code)
         if history:
