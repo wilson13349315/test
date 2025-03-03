@@ -6,6 +6,9 @@ import pandas as pd
 from email.mime.text import MIMEText
 
 
+# Total number of cards (can be updated as needed)
+TOTAL_CARDS = 10  # Update this value based on the available number of cards
+
 def init_db():
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
@@ -78,7 +81,8 @@ def get_borrowing_history(card_code):
 
 
 def get_available_cards():
-    total_cards = {f"Card-{i + 1}" for i in range(10)}  # Assuming 10 cards in total
+    # Total number of cards as a variable
+    total_cards = {f"Card-{i + 1}" for i in range(TOTAL_CARDS)}  # Dynamically adjust total cards count
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
     c.execute("SELECT card_code FROM records WHERE returned = 0")
@@ -156,7 +160,11 @@ elif menu == "Check Overdue":
 elif menu == "View Card History":
     card_code = st.text_input("Enter Card Code:")
     if card_code:
-        if st.button("View History"):
+        # Validate if card code exists
+        available_cards = {f"Card-{i + 1}" for i in range(TOTAL_CARDS)}
+        if card_code not in available_cards:
+            st.error("Invalid card code. Please enter a valid card code.")
+        else:
             history = get_borrowing_history(card_code)
             if history:
                 for h in history:
