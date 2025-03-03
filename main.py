@@ -95,13 +95,17 @@ menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records
                                      "Available Cards"])
 
 if menu == "Borrow Card":
-    card_code = st.selectbox("Card Code:", [f"Card-{i + 1}" for i in range(10)])
-    borrower = st.text_input("Borrower's Name:")
-    email = st.text_input("Borrower's Email:")
-    duration = st.number_input("Borrow Duration (days):", min_value=1, max_value=14, value=14)
-    if st.button("Confirm Borrowing"):
-        borrow_card(card_code, borrower, email, duration)
-        st.success("Borrowing Recorded!")
+    available_cards = get_available_cards()
+    if available_cards:
+        card_code = st.selectbox("Card Code:", available_cards)
+        borrower = st.text_input("Borrower's Name:")
+        email = st.text_input("Borrower's Email:")
+        duration = st.number_input("Borrow Duration (days):", min_value=1, max_value=14, value=14)
+        if st.button("Confirm Borrowing"):
+            borrow_card(card_code, borrower, email, duration)
+            st.success("Borrowing Recorded!")
+    else:
+        st.write("No available cards for borrowing.")
 
 elif menu == "Return Card":
     conn = sqlite3.connect("swim_cards.db")
