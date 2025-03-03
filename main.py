@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import datetime
 import smtplib
+import pandas as pd
 from email.mime.text import MIMEText
 
 
@@ -99,9 +100,19 @@ elif menu == "View Records":
     c.execute("SELECT card_code, borrower, borrow_date, due_date, returned FROM records")
     records = c.fetchall()
     conn.close()
+
+    filter_option = st.radio("Filter Records:", ["All", "Returned", "Not Returned"])
+
     st.write("### Borrowing Records")
-    for r in records:
+    filtered_records = [r for r in records if (filter_option == "All" or (filter_option == "Returned" and r[4]) or (
+                filter_option == "Not Returned" and not r[4]))]
+    for r in filtered_records:
         st.write(f"Card: {r[0]}, Borrower: {r[1]}, Borrowed: {r[2]}, Due: {r[3]}, Returned: {'Yes' if r[4] else 'No'}")
+
+    df = pd.DataFrame(records, columns=["Card Code", "Borrower", "Borrow Date", "Due Date", "Returned"])
+    df["Returned"] = df["Returned"].apply(lambda x: "Yes" if x else "No")
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("Download Records", csv, "swim_card_records.csv", "text/csv")
 
 elif menu == "Check Overdue":
     overdue_list = check_overdue()
