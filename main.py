@@ -26,8 +26,9 @@ def borrow_card(card_code, borrower, email, duration=14):
     due_date = borrow_date + datetime.timedelta(days=duration)
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
-    c.execute("INSERT INTO records (card_code, borrower, borrow_date, due_date, email) VALUES (?, ?, ?, ?, ?)",
-              (card_code, borrower, borrow_date, due_date, email))
+    c.execute(
+        "INSERT INTO records (card_code, borrower, borrow_date, due_date, returned, email) VALUES (?, ?, ?, ?, 0, ?)",
+        (card_code, borrower, borrow_date, due_date, email))
     conn.commit()
     conn.close()
 
@@ -80,7 +81,7 @@ def get_available_cards():
     total_cards = {f"Card-{i + 1}" for i in range(10)}  # Assuming 10 cards in total
     conn = sqlite3.connect("swim_cards.db")
     c = conn.cursor()
-    c.execute("SELECT card_code FROM records WHERE returned = 0")
+    c.execute("SELECT DISTINCT card_code FROM records WHERE returned = 0")
     borrowed_cards = {row[0] for row in c.fetchall()}
     conn.close()
     available_cards = total_cards - borrowed_cards
