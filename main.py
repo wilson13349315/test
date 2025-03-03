@@ -94,15 +94,17 @@ menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records
 
 if menu == "Check Overdue":
     overdue_list = check_overdue()
+    overdue_dict = {}
     if overdue_list:
-        selected_ids = []
         for record in overdue_list:
-            selected = st.checkbox(f"{record[1]} - Due: {record[2]}", key=record[0])
-            if selected:
-                selected_ids.append(record)
-        if st.button("Send Bulk Reminders") and selected_ids:
-            for record in selected_ids:
-                send_email(record[3], record[1], record[2])
-            st.success("Bulk reminders sent!")
+            overdue_dict[record[0]] = st.checkbox(f"{record[1]} - Due: {record[2]}", key=record[0])
+
+        if st.button("Send Bulk Reminders"):
+            selected_ids = [record_id for record_id, selected in overdue_dict.items() if selected]
+            if selected_ids:
+                for record in overdue_list:
+                    if record[0] in selected_ids:
+                        send_email(record[3], record[1], record[2])
+                st.success("Bulk reminders sent!")
     else:
         st.write("No overdue records.")
