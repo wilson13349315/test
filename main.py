@@ -94,9 +94,9 @@ init_db()
 
 # Authorization check for updating the total cards number
 auth_name = st.text_input("Enter your Authorization Name:")
-can_update_total_cards = auth_name == "REOslo"
 
-if can_update_total_cards:
+# Only show the total cards input if the user enters "REOslo"
+if auth_name == "REOslo":
     TOTAL_CARDS = st.number_input("Total Number of Cards Available:", min_value=1, value=10)
 else:
     st.write("You are not authorized to update the total number of cards.")
