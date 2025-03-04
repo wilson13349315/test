@@ -98,7 +98,7 @@ global TOTAL_CARDS
 
 if menu == "Borrow Card":
     # Authorization check for updating the total cards number
-    auth_name = st.text_input("Enter your Authorization Name:")
+    auth_name = st.text_input("If you are an admin, enter your Authorization Name to update the total card count (users shall skip this).")
 
     # Only show the total cards input if the user enters "REOslo"
     if auth_name == "REOslo":
