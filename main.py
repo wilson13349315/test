@@ -92,7 +92,7 @@ def get_available_cards(total_cards):
 st.title("Company Swimming Card Tracker")
 init_db()
 
-menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue", "View Card History"])
+menu = st.sidebar.selectbox("Menu", ["Borrow Card", "Return Card", "View Records", "Check Overdue"])
 
 global TOTAL_CARDS
 
@@ -163,20 +163,3 @@ elif menu == "Check Overdue":
 
     else:
         st.write("No overdue records.")
-
-elif menu == "View Card History":
-    card_code = st.text_input("Enter Card Code:")
-    if card_code:
-        # Validate if card code exists
-        available_cards = {f"Card-{i + 1}" for i in range(TOTAL_CARDS)}
-        if card_code not in available_cards:
-            st.error("Invalid card code. Please enter a valid card code.")
-        else:
-            history = get_borrowing_history(card_code)
-            if history:
-                for h in history:
-                    st.write(f"Borrower: {h[0]}, Borrowed: {h[1]}, Due: {h[2]}, Returned: {'Yes' if h[3] else 'No'}")
-            else:
-                st.write("No history found.")
-    else:
-        st.write("Please enter a valid card code.")
